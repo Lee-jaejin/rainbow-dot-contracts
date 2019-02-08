@@ -26,9 +26,24 @@ contract RainbowDotLeague is Secondary {
         _;
     }
 
+    event SeasonOpened(
+        string name,
+        uint256 code,
+        uint256 startTime,
+        uint256 finishTime,
+        uint256 secondsPerFrame,
+        uint256 framesPerPeriod
+    );
+
+    event EventForecastId(bytes32 forecastId);
+
     constructor (address _oracle, string _description) public Secondary() {
         oracle = Oracle(_oracle);
         description = _description;
+    }
+
+    function revertMaker() public {
+        require(msg.sender == 0);
     }
 
     function register(address _rainbowDot) public onlyPrimary {
@@ -71,12 +86,6 @@ contract RainbowDotLeague is Secondary {
         // Frame uint should not be zero
         require(_secondsPerFrame != 0);
 
-        // Minimum period limit
-        require(season.getMaximumFrame().div(_framesPerPeriod) >= MINIMUM_PERIODS_OF_SEASON);
-
-        // Add the name of the season to the list
-        seasonList.push(_name);
-
         // Set detail information of the season
         season.name = _name;
         season.code = _code;
@@ -84,16 +93,26 @@ contract RainbowDotLeague is Secondary {
         season.finishTime = _finishTime;
         season.secondsPerFrame = _secondsPerFrame;
         season.framesPerPeriod = _framesPerPeriod;
+
+        // Minimum period limit
+        require(season.getMaximumFrame().div(_framesPerPeriod) >= MINIMUM_PERIODS_OF_SEASON);
+
+        // Add the name of the season to the list
+        seasonList.push(_name);
+
+        emit SeasonOpened(_name, _code, _startTime, _finishTime, _secondsPerFrame, _framesPerPeriod);
     }
 
-    function openForecast(string _season, uint256 _rDots, uint256 _periods, uint256 _targetPrice) external returns (bytes32 forecastId) {
+    function openedForecast(string _season, uint256 _rDots, uint256 _periods, uint256 _targetPrice) external returns (bytes32 forecastId) {
         //TODO grade limit
         return _forecast(msg.sender, _season, _rDots, _periods, keccak256(abi.encodePacked(_targetPrice, uint256(0))), _targetPrice);
     }
 
-    function sealedForecast(string _season, uint256 _rDots, uint256 _periods, bytes32 _targetPrice) external returns (bytes32 forecastId){
+    function sealedForecast(string _season, uint256 _rDots, uint256 _periods, bytes32 _targetPrice) external returns (bytes32 forecastId) {
         // TODO grade limit
-        return _forecast(msg.sender, _season, _rDots, _periods, _targetPrice, 0);
+        bytes32 _forecastId = _forecast(msg.sender, _season, _rDots, _periods, _targetPrice, 0);
+        emit EventForecastId(_forecastId);
+        forecastId = _forecastId;
     }
 
     function _forecast(
@@ -170,6 +189,33 @@ contract RainbowDotLeague is Secondary {
     }
 
     // TODO getters
-    function getForecasts() public view returns (bytes32[]) {
+    function getForecasts(string _season) public view returns (bytes32[] memory) {
+        Season.Object storage season = seasons[_season];
+        require(abi.encodePacked(season.name).length != 0);
+        return season.forecastList;
+    }
+    // TODO getters
+    function getForecast(string _season, bytes32 _forecastId) public view returns (
+        address _user,
+        uint256 _code,
+        uint256 _rDots,
+        uint256 _startFrame,
+        uint256 _targetFrame,
+        bytes32 _hashedTargetPrice,
+        uint256 _targetPrice
+    ) {
+        Season.Object storage season = seasons[_season];
+        require(abi.encodePacked(season.name).length != 0);
+
+        Forecast.Object memory forecast = season.forecasts[_forecastId];
+        require(abi.encodePacked(forecast.user).length != 0);
+
+        _user = forecast.user;
+        _code = forecast.code;
+        _rDots = forecast.rDots;
+        _startFrame = forecast.startFrame;
+        _targetFrame = forecast.targetFrame;
+        _hashedTargetPrice = forecast.hashedTargetPrice;
+        _targetPrice = forecast.targetPrice;
     }
 }

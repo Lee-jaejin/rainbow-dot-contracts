@@ -79,7 +79,7 @@ library Season {
         );
 
         // Unique forecast id
-        require(!_object.forecasts[forecastId].isInitialized());
+        require(_object.forecasts[forecastId].isInitialized());
 
         // add forecast data
         _object.forecastList.push(forecastId);
