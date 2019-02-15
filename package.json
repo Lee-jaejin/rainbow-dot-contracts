@@ -16,7 +16,7 @@
   "dependencies": {
     "ethereum-datetime": "^1.0.0",
     "openzeppelin-solidity": "2.0.0",
-    "truffle-plugin-modularizer": "^1.0.1"
+    "truffle-plugin-modularizer": "^1.2.3"
   },
   "scripts": {
     "standard": "./node_modules/.bin/standard test/** src/** --fix",

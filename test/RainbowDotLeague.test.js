@@ -7,7 +7,7 @@ const RainbowDotLeague = artifacts.require('RainbowDotLeague')
 const RainbowDot = artifacts.require('RainbowDot')
 
 contract('RainbowDotLeague', function ([deployer, oracle, user, ...members]) {
-  context.only('When a league is once deployed successfully', async () => {
+  context('When a league is once deployed successfully', async () => {
     let rainbowDot
     let committee
     let rainbowDotLeague

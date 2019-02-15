@@ -13,7 +13,7 @@ contract RainbowDotEndPriceLeague is DateTime, RainbowDotLeague {
     constructor (address _oracle, string _description) public RainbowDotLeague(_oracle, _description) {
     }
 
-    function openForecast(string _season, uint256 _rDots, uint256 _days, uint256 _targetPrice) external returns (bytes32 forecastId) {
+    function openedForecast(string _season, uint256 _rDots, uint256 _days, uint256 _targetPrice) external returns (bytes32 forecastId) {
         //TODO grade limit
         return _forecastEndPrice(msg.sender, _season, _rDots, _days, keccak256(abi.encodePacked(_targetPrice, uint256(0))), _targetPrice);
     }
