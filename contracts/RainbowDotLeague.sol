@@ -26,15 +26,6 @@ contract RainbowDotLeague is Secondary {
         _;
     }
 
-    event SeasonOpened(
-        string name,
-        uint256 code,
-        uint256 startTime,
-        uint256 finishTime,
-        uint256 secondsPerFrame,
-        uint256 framesPerPeriod
-    );
-
     event EventForecastId(bytes32 forecastId);
 
     constructor (address _oracle, string _description) public Secondary() {
@@ -58,6 +49,18 @@ contract RainbowDotLeague is Secondary {
     function accept(function(address, uint256) external _takeRDot, function(address[] memory, int256[] memory) external _onResult) public onlyRainbowDot {
         takeRDot = _takeRDot;
         onResult = _onResult;
+    }
+
+    function isSeasonInit(string _name) public view returns (bool _isInit) {
+        Season.Object storage season = seasons[_name];
+
+        _isInit = season.isInitialized();
+    }
+
+    function isSeasonStarted(string _name) public view returns (bool _isStarted) {
+        Season.Object storage season = seasons[_name];
+
+        _isStarted = season.isOnGoing();
     }
 
     function newSeason(
@@ -99,8 +102,6 @@ contract RainbowDotLeague is Secondary {
 
         // Add the name of the season to the list
         seasonList.push(_name);
-
-        emit SeasonOpened(_name, _code, _startTime, _finishTime, _secondsPerFrame, _framesPerPeriod);
     }
 
     function openedForecast(string _season, uint256 _rDots, uint256 _periods, uint256 _targetPrice) external returns (bytes32 forecastId) {
@@ -188,13 +189,12 @@ contract RainbowDotLeague is Secondary {
         onResult(users, rScores);
     }
 
-    // TODO getters
     function getForecasts(string _season) public view returns (bytes32[] memory) {
         Season.Object storage season = seasons[_season];
         require(abi.encodePacked(season.name).length != 0);
         return season.forecastList;
     }
-    // TODO getters
+
     function getForecast(string _season, bytes32 _forecastId) public view returns (
         address _user,
         uint256 _code,
