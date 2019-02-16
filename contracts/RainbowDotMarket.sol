@@ -20,10 +20,11 @@ contract RainbowDotMarket {
         bytes encryptedValue;
         bool cancelled;
         bool sold;
+        uint256 targetPrice;      // should remove
     }
 
     event Order(uint256 id, address indexed seller, address indexed buyer, bytes32 hash, uint256 payment);
-    event Complete(address indexed seller, address indexed buyer, bytes32 hash, uint256 payment);
+    event Complete(address indexed seller, address indexed buyer, bytes32 hash, uint256 payment, uint256 targetPrice);      // should remove targetPrice
 
     constructor (address _interpines) {
         interpines = IERC20(_interpines);
@@ -36,7 +37,7 @@ contract RainbowDotMarket {
         pos[msg.sender] = pos[msg.sender].add(_amount);
     }
 
-    function getStake(address _user) public returns (uint256) {
+    function getStake(address _user) public view returns (uint256) {
         return pos[_user];
     }
 
@@ -49,7 +50,7 @@ contract RainbowDotMarket {
         require(staking >= _payment);
         require(_payment > 0);
         interpines.transferFrom(msg.sender, address(this), _payment);
-        items.push(Item(_hashedTargetPrice, _seller, msg.sender, _payment, new bytes(0), false, false));
+        items.push(Item(_hashedTargetPrice, _seller, msg.sender, _payment, new bytes(0), false, false, 0));
         _itemId = items.length - 1;
         emit Order(
             _itemId,
@@ -78,15 +79,17 @@ contract RainbowDotMarket {
         interpines.transfer(msg.sender, item.payment);
     }
 
-    function sell(uint256 _itemId, bytes _value) public {
+    // TODO: 'uint256 _targetPrice' must be changed to 'bytes _value'
+    function sell(uint256 _itemId, uint256 _targetPrice) public {
         Item storage item = items[_itemId];
         require(item.seller == msg.sender);
         require(!item.cancelled);
         require(!item.sold);
-        item.encryptedValue = _value;
+//        item.encryptedValue = _value;
+        item.targetPrice = _targetPrice;
         item.sold = true;
         // TODO transfer to seller
-        emit Complete(item.seller, item.buyer, item.hashedTargetPrice, item.payment);
+        emit Complete(item.seller, item.buyer, item.hashedTargetPrice, item.payment, item.targetPrice);
     }
 
     function fraudProof(uint256 _itemId, bytes _decrypted, bytes _pubKey) public {
