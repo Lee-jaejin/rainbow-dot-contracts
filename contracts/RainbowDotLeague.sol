@@ -33,10 +33,6 @@ contract RainbowDotLeague is Secondary {
         description = _description;
     }
 
-    function revertMaker() public {
-        require(msg.sender == 0);
-    }
-
     function register(address _rainbowDot) public onlyPrimary {
         // Should not be assigned before
         require(address(rainbowDot) == address(0));
