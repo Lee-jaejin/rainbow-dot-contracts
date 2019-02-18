@@ -11,6 +11,7 @@ contract RainbowDotMarket {
     IERC20 public interpines;
     mapping(address => uint256) pos;
     Item[] items;
+    bytes32[] public itemList;
 
     struct Item {
         bytes32 hashedTargetPrice;
@@ -30,11 +31,16 @@ contract RainbowDotMarket {
         interpines = IERC20(_interpines);
     }
 
-    function stake(uint256 _amount) public {
+    function stake(uint256 _amount, bytes32 _forecastId) public {
         uint256 staking = interpines.allowance(msg.sender, address(this));
         require(staking >= _amount);
         interpines.transferFrom(msg.sender, address(this), _amount);
         pos[msg.sender] = pos[msg.sender].add(_amount);
+        itemList.push(_forecastId);
+    }
+
+    function getItemList() public view returns (bytes32[] memory) {
+        return itemList;
     }
 
     function getStake(address _user) public view returns (uint256) {

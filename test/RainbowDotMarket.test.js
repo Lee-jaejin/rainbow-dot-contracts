@@ -10,7 +10,7 @@ let interpinesToken
 
 contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
   let tokenName = 'Indexmine Token'
-  let tokenSymbol = 'IMT'
+  let tokenSymbol = 'IPT'
   let decimals = 18
 
   context.only('Accounts can register as a seller by staking IPT', async () => {
@@ -28,7 +28,7 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
       it('should stake IPT for registering as a seller', async () => {
         let price = 100
         await interpinesToken.approve(rainbowDotMarket.address, price, { from: seller })
-        await rainbowDotMarket.stake(price, { from: seller })
+        await rainbowDotMarket.stake(price, '0x123456789', { from: seller })
 
         let stakedBalance = await interpinesToken.balanceOf(rainbowDotMarket.address)
 
