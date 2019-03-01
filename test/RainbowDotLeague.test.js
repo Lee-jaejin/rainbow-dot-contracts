@@ -5,15 +5,21 @@ chai.use(require('chai-bignumber')(BigNumber)).should()
 const RainbowDotCommittee = artifacts.require('RainbowDotCommittee')
 const RainbowDotLeague = artifacts.require('RainbowDotLeague')
 const RainbowDot = artifacts.require('RainbowDot')
+let rainbowDot
+let rainbowDotCommittee
+let rainbowDotLeague
 
 contract('RainbowDotLeague', function ([deployer, oracle, user, seller, buyer, ...members]) {
-  context.only('When a league is once deployed successfully', async () => {
-    let rainbowDot
-    let committee
-    let rainbowDotLeague
-    let currentTime = Math.floor(Date.now() / 1000)
-    let code = 1
+  context('When a league is once deployed successfully', async () => {
+    // for season
     let seasonName = 'testSeason'
+    let currentTime = Math.floor(Date.now() / 1000)
+    // for forecast
+    let testTargetPrice1 = 35000
+    let testTargetPrice2 = 23000
+    let nonce = 0
+    let code = 1
+    let targetPeriod = 100
     let agendaId
     let sealedForecastId
     let sealedForecast
@@ -24,7 +30,7 @@ contract('RainbowDotLeague', function ([deployer, oracle, user, seller, buyer, .
 
       // Get committee which is deployed during the RainbowDot contract's deployment
       let commiteeAddress = await rainbowDot.committee()
-      committee = await RainbowDotCommittee.at(commiteeAddress)
+      rainbowDotCommittee = await RainbowDotCommittee.at(commiteeAddress)
 
       // Deploy a new league & register it to the rainbow dot
       rainbowDotLeague = await RainbowDotLeague.new(deployer, 'Indexmine Cup')
@@ -33,18 +39,18 @@ contract('RainbowDotLeague', function ([deployer, oracle, user, seller, buyer, .
       // add user
       await rainbowDot.join({ from: user })
 
-      let eventFilter = committee.NewAgenda()
+      let eventFilter = rainbowDotCommittee.NewAgenda()
 
       await eventFilter.on('data', async (result) => {
         agendaId = result.args.agendaId.toNumber() // undefined
 
         // this won't work because of truffle 5's changing
         for (let i = 0; i < members.length; i++) {
-          await committee.vote(agendaId, true, { from: members[i] })
+          await rainbowDotCommittee.vote(agendaId, true, { from: members[i] })
         }
       })
 
-      let onResult = committee.OnResult()
+      let onResult = rainbowDotCommittee.OnResult()
       await onResult.on('data', async (result) => {
         assert.equal(result.args.result, true)
         assert.equal(await rainbowDot.isApprovedLeague(rainbowDotLeague.address), true)
@@ -52,7 +58,7 @@ contract('RainbowDotLeague', function ([deployer, oracle, user, seller, buyer, .
 
       for (let i = 0; i < members.length; i++) {
         // TODO: should get agendaId from event 'NewAgenda'
-        await committee.vote(0, true, { from: members[i] })
+        await rainbowDotCommittee.vote(0, true, { from: members[i] })
       }
 
       let isApproved = await rainbowDot.isApprovedLeague(rainbowDotLeague.address)
@@ -70,14 +76,14 @@ contract('RainbowDotLeague', function ([deployer, oracle, user, seller, buyer, .
     })
     describe('openedForecast()', async () => {
       it('should register opened forecast', async () => {
-        await rainbowDotLeague.openedForecast(seasonName, 1, 100, 23000, { from: user })
+        await rainbowDotLeague.openedForecast(seasonName, code, targetPeriod, testTargetPrice2, { from: user })
       })
     })
     describe('sealedForecast()', async () => {
       it('should register sealed forecast', async () => {
-        let bytesTargetPrice = web3.utils.soliditySha3(35000, 0)
+        let bytesTargetPrice = web3.utils.soliditySha3(testTargetPrice1, nonce)
 
-        sealedForecast = await rainbowDotLeague.sealedForecast(seasonName, 1, 100, bytesTargetPrice, { from: user })
+        sealedForecast = await rainbowDotLeague.sealedForecast(seasonName, code, targetPeriod, bytesTargetPrice, { from: user })
         sealedForecastId = sealedForecast.logs[0].args.forecastId
       })
     })
@@ -85,7 +91,7 @@ contract('RainbowDotLeague', function ([deployer, oracle, user, seller, buyer, .
       it('should reveal sealed forecast', async () => {
         console.log('sealed forecast id : ', sealedForecastId)
 
-        await rainbowDotLeague.revealForecast(seasonName, sealedForecastId, 35000, 0)
+        await rainbowDotLeague.revealForecast(seasonName, sealedForecastId, testTargetPrice1, nonce)
       })
     })
     describe('getForecasts()', async () => {
