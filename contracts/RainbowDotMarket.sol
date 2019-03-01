@@ -2,40 +2,83 @@ pragma solidity ^0.4.24;
 
 import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./RainbowDotLeague.sol";
 import "./Types.sol";
 
 contract RainbowDotMarket {
     using Forecast for Forecast.Object;
+    using Season for Season.Object;
     using SafeMath for uint256;
 
+    RainbowDotLeague rainbowDotLeague;
     IERC20 public interpines;
-    mapping(address => uint256) pos;
-    Item[] items;
-    bytes32[] public itemList;
+    bytes32[] itemList;
+
+    mapping (address => uint256) pos;
+    mapping (bytes32 => Item) items;
+    mapping (string => RainbowDotLeague) leagues;
 
     struct Item {
-        bytes32 hashedTargetPrice;
+        bytes32 forecastId;
         address seller;
-        address buyer;
-        uint256 payment;
-        bytes encryptedValue;
-        bool cancelled;
-        bool sold;
-        uint256 targetPrice;      // should remove
+        uint256 sellCount;
+        mapping (address => bool) cancelled;
+        mapping (address => uint256) payment;
+        mapping (address => bool) reader;
     }
 
-    event Order(uint256 id, address indexed seller, address indexed buyer, bytes32 hash, uint256 payment);
-    event Complete(address indexed seller, address indexed buyer, bytes32 hash, uint256 payment, uint256 targetPrice);      // should remove targetPrice
+    event Sold(address indexed seller, address indexed buyer, uint256 payment, bytes32 forecastId, uint256 sellCount);
 
     constructor (address _interpines) {
         interpines = IERC20(_interpines);
     }
 
-    function stake(uint256 _amount, bytes32 _forecastId) public {
+    function registerLeague(string _leagueName, address _rainbowDotLeague) public {
+        leagues[_leagueName] = RainbowDotLeague(_rainbowDotLeague);
+    }
+
+    function getForecastsFromLeague(string _leagueName) public view returns (bytes32[] memory) {
+        return leagues[_leagueName].getForecasts(_leagueName);
+    }
+
+    function getForecastFromLeague(string _leagueName, bytes32 _forecastId) public view returns (
+        address _user,
+        uint256 _code,
+        uint256 _rDots,
+        uint256 _startFrame,
+        uint256 _targetFrame,
+        bytes32 _hashedTargetPrice,
+        uint256 _targetPrice
+    ) {
+        Item storage item = items[_forecastId];
+
+        (
+            _user,
+            _code,
+            _rDots,
+            _startFrame,
+            _targetFrame,
+            _hashedTargetPrice,
+            _targetPrice
+        ) = leagues[_leagueName].getForecast(_leagueName, _forecastId);
+
+        if (!item.reader[msg.sender]) {
+            _targetPrice = 0;
+        }
+    }
+
+    function stake(uint256 _amount, bytes32 _forecastId, uint256 _sellCount) public {
         uint256 staking = interpines.allowance(msg.sender, address(this));
         require(staking >= _amount);
+
         interpines.transferFrom(msg.sender, address(this), _amount);
         pos[msg.sender] = pos[msg.sender].add(_amount);
+
+        Item storage item = items[_forecastId];
+        item.seller = msg.sender;
+        item.sellCount = _sellCount;
+        item.forecastId = _forecastId;
+        item.reader[msg.sender] = true;
         itemList.push(_forecastId);
     }
 
@@ -43,88 +86,60 @@ contract RainbowDotMarket {
         return itemList;
     }
 
+    function getItem(bytes32 _forecastId, address _buyer) public view returns (
+        address _seller,
+        uint256 _sellCount,
+        bool _cancelled,
+        uint256 _payment,
+        bool _reader
+    ) {
+        Item storage item = items[_forecastId];
+
+        _seller = item.seller;
+        _sellCount = item.sellCount;
+        _cancelled = item.cancelled[_buyer];
+        _payment = item.payment[_buyer];
+        _reader = item.reader[_buyer];
+    }
+
     function getStake(address _user) public view returns (uint256) {
         return pos[_user];
     }
 
-    function order(
-        bytes32 _hashedTargetPrice,
-        address _seller,
-        uint256 _payment
-    ) public returns (uint256 _itemId){
+    function order(uint256 _payment, bytes32 _forecastId) public {
         uint256 staking = interpines.allowance(msg.sender, address(this));
         require(staking >= _payment);
         require(_payment > 0);
+
         interpines.transferFrom(msg.sender, address(this), _payment);
-        items.push(Item(_hashedTargetPrice, _seller, msg.sender, _payment, new bytes(0), false, false, 0));
-        _itemId = items.length - 1;
-        emit Order(
-            _itemId,
-            _seller,
-            msg.sender,
-            _hashedTargetPrice,
-            _payment
-        );
+        Item storage item = items[_forecastId];
+        item.payment[msg.sender] = _payment;
     }
 
-    function registerPublicKey(bytes32 _pubKey) public {
-        //
+    function cancel(bytes32 _forecastId) public {
+        Item storage item = items[_forecastId];
+        require(item.payment[msg.sender] != 0);
+        require(!item.cancelled[msg.sender]);
+
+        item.cancelled[msg.sender] = true;
+        interpines.transfer(msg.sender, item.payment[msg.sender]);
     }
 
-    function getPubKey(address _user) public view returns (bytes32) {
+    function sell(bytes32 _forecastId, address _buyer) public {
+        Item storage item = items[_forecastId];
 
-    }
-
-    function cancel(uint256 _itemId) public {
-        Item storage item = items[_itemId];
-        require(item.buyer == msg.sender);
-        require(!item.cancelled);
-        require(!item.sold);
-        require(item.payment > 0);
-        item.cancelled = true;
-        interpines.transfer(msg.sender, item.payment);
-    }
-
-    // TODO: 'uint256 _targetPrice' must be changed to 'bytes _value'
-    function sell(uint256 _itemId, uint256 _targetPrice) public {
-        Item storage item = items[_itemId];
         require(item.seller == msg.sender);
-        require(!item.cancelled);
-        require(!item.sold);
-//        item.encryptedValue = _value;
-        item.targetPrice = _targetPrice;
-        item.sold = true;
-        // TODO transfer to seller
-        emit Complete(item.seller, item.buyer, item.hashedTargetPrice, item.payment, item.targetPrice);
-    }
+        require(!item.cancelled[_buyer]);
+        require(item.sellCount != 0);
 
-    function fraudProof(uint256 _itemId, bytes _decrypted, bytes _pubKey) public {
-        //        require(_pubKeyToAddress(_pubKey) == msg.sender);
-        Item storage item = items[_itemId];
-        bytes memory encryptedValue = _encryptWithPublicKey(_decrypted, _pubKey);
-        require(keccak256(encryptedValue) == keccak256(item.encryptedValue));
-        require(keccak256(_decrypted) != item.hashedTargetPrice);
+        item.reader[_buyer] = true;
+        interpines.transfer(item.seller, item.payment[_buyer]);
+        item.sellCount = item.sellCount.sub(1);
 
-        //slash
-        require(pos[item.seller] > 0);
-        interpines.transfer(msg.sender, pos[item.seller]);
-        pos[item.seller] = 0;
-    }
+        if (item.sellCount == 0) {
+            interpines.transfer(item.seller, pos[item.seller]);
+        }
 
-    function getValue(uint256 itemId) public view returns (bytes) {
-        Item storage item = items[itemId];
-        require(item.buyer == msg.sender);
-        require(item.encryptedValue.length != 0);
-        return item.encryptedValue;
-    }
-
-    function _encryptWithPublicKey(bytes _value, bytes _pubKey) private returns (bytes){
-        //TODO
-        return new bytes(0);
-    }
-
-    function _pubKeyToAddress(bytes _pubKey) private pure returns (address){
-        //TODO
-        return address(0);
+        emit Sold(item.seller, _buyer, item.payment[_buyer], _forecastId, item.sellCount);
     }
 }
