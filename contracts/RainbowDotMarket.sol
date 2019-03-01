@@ -27,7 +27,7 @@ contract RainbowDotMarket {
         mapping (address => bool) reader;
     }
 
-    event Sold(address indexed seller, address indexed buyer, uint256 payment, bytes32 forecastId);
+    event Sold(address indexed seller, address indexed buyer, uint256 payment, bytes32 forecastId, uint256 sellCount);
 
     constructor (address _interpines) {
         interpines = IERC20(_interpines);
@@ -70,6 +70,7 @@ contract RainbowDotMarket {
     function stake(uint256 _amount, bytes32 _forecastId, uint256 _sellCount) public {
         uint256 staking = interpines.allowance(msg.sender, address(this));
         require(staking >= _amount);
+
         interpines.transferFrom(msg.sender, address(this), _amount);
         pos[msg.sender] = pos[msg.sender].add(_amount);
 
@@ -85,6 +86,22 @@ contract RainbowDotMarket {
         return itemList;
     }
 
+    function getItem(bytes32 _forecastId, address _buyer) public view returns (
+        address _seller,
+        uint256 _sellCount,
+        bool _cancelled,
+        uint256 _payment,
+        bool _reader
+    ) {
+        Item storage item = items[_forecastId];
+
+        _seller = item.seller;
+        _sellCount = item.sellCount;
+        _cancelled = item.cancelled[_buyer];
+        _payment = item.payment[_buyer];
+        _reader = item.reader[_buyer];
+    }
+
     function getStake(address _user) public view returns (uint256) {
         return pos[_user];
     }
@@ -93,6 +110,7 @@ contract RainbowDotMarket {
         uint256 staking = interpines.allowance(msg.sender, address(this));
         require(staking >= _payment);
         require(_payment > 0);
+
         interpines.transferFrom(msg.sender, address(this), _payment);
         Item storage item = items[_forecastId];
         item.payment[msg.sender] = _payment;
@@ -102,6 +120,7 @@ contract RainbowDotMarket {
         Item storage item = items[_forecastId];
         require(item.payment[msg.sender] != 0);
         require(!item.cancelled[msg.sender]);
+
         item.cancelled[msg.sender] = true;
         interpines.transfer(msg.sender, item.payment[msg.sender]);
     }
@@ -115,12 +134,12 @@ contract RainbowDotMarket {
 
         item.reader[_buyer] = true;
         interpines.transfer(item.seller, item.payment[_buyer]);
-        item.sellCount.sub(1);
+        item.sellCount = item.sellCount.sub(1);
 
         if (item.sellCount == 0) {
             interpines.transfer(item.seller, pos[item.seller]);
         }
 
-        emit Sold(item.seller, _buyer, item.payment[_buyer], _forecastId);
+        emit Sold(item.seller, _buyer, item.payment[_buyer], _forecastId, item.sellCount);
     }
 }
