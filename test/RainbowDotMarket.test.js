@@ -120,6 +120,11 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
 
         assert.equal(0, forecastInfoFromLeague._targetPrice)
       })
+      it('should find that the league is registered or not', async () => {
+        let isRegistered = await rainbowDotMarket.isRegistered(seasonName)
+
+        assert.equal(isRegistered, true)
+      })
     })
     describe('stake()', async () => {
       it('should stake IPT for registering as a seller', async () => {

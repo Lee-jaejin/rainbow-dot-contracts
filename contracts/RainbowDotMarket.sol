@@ -17,6 +17,7 @@ contract RainbowDotMarket {
     mapping (address => uint256) pos;
     mapping (bytes32 => Item) items;
     mapping (string => RainbowDotLeague) leagues;
+    mapping (string => bool) registered;
 
     struct Item {
         bytes32 forecastId;
@@ -33,8 +34,13 @@ contract RainbowDotMarket {
         interpines = IERC20(_interpines);
     }
 
+    function isRegistered(string _leagueName) public view returns (bool _registered) {
+        _registered = registered[_leagueName];
+    }
+
     function registerLeague(string _leagueName, address _rainbowDotLeague) public {
         leagues[_leagueName] = RainbowDotLeague(_rainbowDotLeague);
+        registered[_leagueName] = true;
     }
 
     function getForecastsFromLeague(string _leagueName) public view returns (bytes32[] memory) {
