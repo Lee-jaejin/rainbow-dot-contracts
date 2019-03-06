@@ -12,6 +12,8 @@ library Forecast {
         uint256 targetFrame;
         bytes32 hashedTargetPrice;
         uint256 targetPrice;
+        // When user sell the item, must input the targetPrice. Then tempSealed variable will remove.
+        bool tempSealed;
     }
 
     function isInitialized(Object memory _object) internal pure returns (bool) {
@@ -74,7 +76,8 @@ library Season {
                 _forecast.rDots,
                 _forecast.startFrame,
                 _forecast.targetFrame,
-                _forecast.hashedTargetPrice
+                _forecast.hashedTargetPrice,
+                _forecast.tempSealed
             )
         );
 
