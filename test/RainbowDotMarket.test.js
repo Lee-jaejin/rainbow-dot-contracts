@@ -39,6 +39,7 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
     let buyerBalance = 10000000
     let stakingPrice = 120
     let buyingPrice = 40
+    let sellCount = 3
 
     before(async () => {
       // Deploy rainbow dot first
@@ -129,13 +130,13 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
     describe('stake()', async () => {
       it('should stake IPT for registering as a seller', async () => {
         await interpinesToken.approve(rainbowDotMarket.address, stakingPrice, { from: seller })
-        await rainbowDotMarket.stake(stakingPrice, sealedForecastId, 3, { from: seller })
+        await rainbowDotMarket.stake(stakingPrice, sealedForecastId, sellCount, { from: seller })
 
         let stakedBalance = await interpinesToken.balanceOf(rainbowDotMarket.address)
 
         assert.equal(stakedBalance, stakingPrice)
 
-        let isStakedFromSeller = await rainbowDotMarket.getStake(seller)
+        let isStakedFromSeller = await rainbowDotMarket.getStake(seller, sealedForecastId)
 
         assert.equal(isStakedFromSeller, stakingPrice)
       })
@@ -175,8 +176,7 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
         assert.equal(buyerBalance - buyingPrice, buyerRemainingBalance)
         assert.equal(sellerBalance - stakingPrice + buyingPrice, sellerRemainingBalance)
       })
-      it('shouldn\'t sell when the sellCount is 0', async () => {
-        // sell 2 times more
+      it('should return staked balance to seller when sellCount is 0.', async () => {
         await interpinesToken.approve(rainbowDotMarket.address, buyingPrice, { from: buyer })
         await rainbowDotMarket.order(buyingPrice, sealedForecastId, { from: buyer })
         await rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller })
@@ -184,7 +184,19 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
         await rainbowDotMarket.order(buyingPrice, sealedForecastId, { from: buyer })
         await rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller })
 
-        // and then should not sell more because the sell count was 3.
+        let balance1 = await interpinesToken.balanceOf(seller)
+        console.log('seller balance : ', balance1.toNumber())
+
+        await rainbowDotMarket.payBack(sealedForecastId, { from: seller })
+
+        let marketBalance = await interpinesToken.balanceOf(rainbowDotMarket.address)
+        console.log('market balance : ', marketBalance.toNumber())
+
+        let balance2 = await interpinesToken.balanceOf(seller)
+        console.log('seller balance : ', balance2.toNumber())
+        assert.equal(sellerBalance + stakingPrice, balance2.toNumber())
+      })
+      it('shouldn\'t sell when the sellCount is 0', async () => {
         await interpinesToken.approve(rainbowDotMarket.address, buyingPrice, { from: buyer })
         await rainbowDotMarket.order(buyingPrice, sealedForecastId, { from: buyer })
         await truffleAssert.reverts(rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller }), revertMsg)
