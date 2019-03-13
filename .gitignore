@@ -51,3 +51,6 @@ typings/
 
 # Etc
 .DS_Store
+
+# contract build file
+src/index.js
