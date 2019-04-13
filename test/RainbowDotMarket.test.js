@@ -17,12 +17,14 @@ let rainbowDotLeague
 let interpinesToken
 let rainbowDotMarket
 
-contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
+contract.only('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
   let tokenName = 'Indexmine Token'
   let tokenSymbol = 'IPT'
   let decimals = 18
 
-  context.only('Accounts can register as a seller by staking IPT', async () => {
+  context('Accounts can register as a seller by staking IPT', async () => {
+    // for league
+    let leagueName = 'testLeague'
     // for season
     let currentTime = Math.floor(Date.now() / 1000)
     let seasonName = 'testSeason'
@@ -114,15 +116,15 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
     })
     describe('registerLeague()', async () => {
       it('should register league to market', async () => {
-        await rainbowDotMarket.registerLeague(seasonName, rainbowDotLeague.address)
-        await rainbowDotLeague.revealForecast(seasonName, sealedForecastId, testTargetPrice, nonce)
+        await rainbowDotMarket.registerLeague(leagueName, rainbowDotLeague.address)
+        // await rainbowDotLeague.revealForecast(seasonName, sealedForecastId, testTargetPrice, nonce)
 
-        let forecastInfoFromLeague = await rainbowDotMarket.getForecastFromLeague(seasonName, sealedForecastId)
+        // let forecastInfoFromLeague = await rainbowDotMarket.getForecastFromLeague(leagueName, seasonName, sealedForecastId, { from: seller })
 
-        assert.equal(0, forecastInfoFromLeague._targetPrice)
+        // assert.equal(0, forecastInfoFromLeague._targetPrice)
       })
       it('should find that the league is registered or not', async () => {
-        let isRegistered = await rainbowDotMarket.isRegistered(seasonName)
+        let isRegistered = await rainbowDotMarket.isRegistered(leagueName)
 
         assert.equal(isRegistered, true)
       })
@@ -145,8 +147,7 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
       it('should get item from item list', async () => {
         let itemInfo = await rainbowDotMarket.getItem(sealedForecastId, buyer)
 
-        console.log('item info : ', itemInfo)
-        console.log('sell count : ', itemInfo._sellCount.toNumber())
+        console.log('sold out : ', itemInfo._soldOut.toNumber())
       })
     })
     describe('order() & sell()', async () => {
@@ -159,16 +160,22 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
 
         let itemInfo = await rainbowDotMarket.getItem(sealedForecastId, buyer)
 
-        console.log('item info : ', itemInfo)
-        console.log('sell count : ', itemInfo._sellCount.toNumber())
+        console.log('sold out : ', itemInfo._soldOut.toNumber())
       })
       it('should sell (incomplete)', async () => {
-        await rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller })
+        let forecastInfo1 = await rainbowDotLeague.getForecast(seasonName, sealedForecastId)
+        console.log('forecast hashedTargetPrice: ', forecastInfo1._hashedTargetPrice)
+        let forecastInfo = await rainbowDotMarket.getForecastFromLeague(leagueName, seasonName, sealedForecastId, { from: seller })
+        // TODO: reHashedValue should make by the decrypted value which is the getForecastFromLeague's _hashedTargetPrice
+        let reHashedValue = forecastInfo._hashedTargetPrice
+        console.log('reHashedValue: ', reHashedValue)
+        // TODO: this line should make by decrypted value of _hashedTargetPrice
+        let encryptedValue = web3.utils.soliditySha3(testTargetPrice, nonce)
+        await rainbowDotMarket.sell(leagueName, seasonName, sealedForecastId, buyer, encryptedValue, reHashedValue, { from: seller })
 
         let itemInfo = await rainbowDotMarket.getItem(sealedForecastId, buyer)
 
-        console.log('item info : ', itemInfo)
-        console.log('sell count : ', itemInfo._sellCount.toNumber())
+        console.log('sold out : ', itemInfo._soldOut.toNumber())
 
         let buyerRemainingBalance = await interpinesToken.balanceOf(buyer)
         let sellerRemainingBalance = await interpinesToken.balanceOf(seller)
@@ -176,13 +183,18 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
         assert.equal(buyerBalance - buyingPrice, buyerRemainingBalance)
         assert.equal(sellerBalance - stakingPrice + buyingPrice, sellerRemainingBalance)
       })
-      it('should return staked balance to seller when sellCount is 0.', async () => {
+      it('should return staked balance to seller when sold out is sell count.', async () => {
         await interpinesToken.approve(rainbowDotMarket.address, buyingPrice, { from: buyer })
         await rainbowDotMarket.order(buyingPrice, sealedForecastId, { from: buyer })
-        await rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller })
+
+        let forecastInfo = await rainbowDotMarket.getForecastFromLeague(leagueName, seasonName, sealedForecastId, { from: seller })
+        let reHashedValue = forecastInfo._hashedTargetPrice
+        let encryptedValue = web3.utils.soliditySha3(testTargetPrice, nonce)
+        await rainbowDotMarket.sell(leagueName, seasonName, sealedForecastId, buyer, encryptedValue, reHashedValue, { from: seller })
+
         await interpinesToken.approve(rainbowDotMarket.address, buyingPrice, { from: buyer })
         await rainbowDotMarket.order(buyingPrice, sealedForecastId, { from: buyer })
-        await rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller })
+        await rainbowDotMarket.sell(leagueName, seasonName, sealedForecastId, buyer, encryptedValue, reHashedValue, { from: seller })
 
         let balance1 = await interpinesToken.balanceOf(seller)
         console.log('seller balance : ', balance1.toNumber())
@@ -199,7 +211,14 @@ contract('RainbowDotMarket', ([deployer, seller, buyer, ...members]) => {
       it('shouldn\'t sell when the sellCount is 0', async () => {
         await interpinesToken.approve(rainbowDotMarket.address, buyingPrice, { from: buyer })
         await rainbowDotMarket.order(buyingPrice, sealedForecastId, { from: buyer })
-        await truffleAssert.reverts(rainbowDotMarket.sell(sealedForecastId, buyer, { from: seller }), revertMsg)
+
+        let forecastInfo = await rainbowDotMarket.getForecastFromLeague(leagueName, seasonName, sealedForecastId, { from: seller })
+        let reHashedValue = forecastInfo._hashedTargetPrice
+        let encryptedValue = web3.utils.soliditySha3(testTargetPrice, nonce)
+
+        await truffleAssert.reverts(rainbowDotMarket.sell(
+          leagueName, seasonName, sealedForecastId,
+          buyer, encryptedValue, reHashedValue, { from: seller }), revertMsg)
       })
     })
   })

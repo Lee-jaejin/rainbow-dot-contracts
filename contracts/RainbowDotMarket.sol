@@ -27,6 +27,7 @@ contract RainbowDotMarket {
         mapping (address => bool) cancelled;
         mapping (address => uint256) payment;
         mapping (address => bool) reader;
+        mapping (address => bytes32) encryptedValue;
     }
 
     event Sold(address indexed seller, address indexed buyer, uint256 payment, bytes32 forecastId, uint256 sellCount, uint256 soldOut);
@@ -44,11 +45,12 @@ contract RainbowDotMarket {
         registered[_leagueName] = true;
     }
 
-    function getForecastsFromLeague(string _leagueName) public view returns (bytes32[] memory) {
-        return leagues[_leagueName].getForecasts(_leagueName);
+    function getForecastsFromLeague(string _leagueName, string _seasonName) public view returns (bytes32[] memory) {
+        return leagues[_leagueName].getForecasts(_seasonName);
     }
 
-    function getForecastFromLeague(string _leagueName, bytes32 _forecastId) public view returns (
+    // before calling function sell()
+    function getForecastFromLeague(string _leagueName, string _seasonName, bytes32 _forecastId) public view returns (
         address _user,
         uint256 _code,
         uint256 _rDots,
@@ -59,18 +61,30 @@ contract RainbowDotMarket {
     ) {
         Item storage item = items[_forecastId];
 
-        (
-            _user,
-            _code,
-            _rDots,
-            _startFrame,
-            _targetFrame,
-            _hashedTargetPrice,
-            _targetPrice
-        ) = leagues[_leagueName].getForecastByMarket(_leagueName, _forecastId);
+        if (msg.sender == item.seller) {
+            (
+                _user,
+                _code,
+                _rDots,
+                _startFrame,
+                _targetFrame,
+                _hashedTargetPrice,
+                _targetPrice
+            ) = leagues[_leagueName].getForecastByMarket(_seasonName, _forecastId);
+        } else {
+            (
+                _user,
+                _code,
+                _rDots,
+                _startFrame,
+                _targetFrame,
+                _hashedTargetPrice,
+                _targetPrice
+            ) = leagues[_leagueName].getForecastByMarket(_seasonName, _forecastId);
 
-        if (!item.reader[msg.sender]) {
-            _targetPrice = 0;
+            require(item.encryptedValue[msg.sender] != bytes32(0));
+
+            _hashedTargetPrice = item.encryptedValue[msg.sender];
         }
     }
 
@@ -135,13 +149,25 @@ contract RainbowDotMarket {
         interpines.transfer(msg.sender, item.payment[msg.sender]);
     }
 
-    function sell(bytes32 _forecastId, address _buyer) public {
+    function sell(
+        string _leagueName,
+        string _seasonName,
+        bytes32 _forecastId,
+        address _buyer,
+        bytes32 _encryptedValue,
+        bytes32 _reHashedValue
+    ) public {
         Item storage item = items[_forecastId];
 
         require(item.seller == msg.sender);
         require(!item.cancelled[_buyer]);
         require(item.soldOut < item.sellCount);
 
+        bytes32 _hashedTargetPrice = leagues[_leagueName].getHashedPrice(_seasonName, _forecastId);
+
+        require(_hashedTargetPrice == _reHashedValue, "invalid hashedTargetPrice!");
+
+        item.encryptedValue[_buyer] = _encryptedValue;
         interpines.transfer(item.seller, item.payment[_buyer]);
         item.reader[_buyer] = true;
         item.soldOut = item.soldOut.add(1);

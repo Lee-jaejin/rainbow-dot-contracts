@@ -13,7 +13,7 @@ library Forecast {
         bytes32 hashedTargetPrice;
         uint256 targetPrice;
         // When user sell the item, must input the targetPrice. Then tempSealed variable will remove.
-        bool tempSealed;
+        bool tempSealed;        // TODO: should remove
     }
 
     function isInitialized(Object memory _object) internal pure returns (bool) {

@@ -149,6 +149,7 @@ contract RainbowDotLeague is Secondary {
         forecastId = season.addForecast(forecast);
     }
 
+    // revealForecast only can be called at end of season
     function revealForecast(string _season, bytes32 _forecastId, uint256 _value, uint _nonce) external {
         Season.Object storage season = seasons[_season];
         // Check initialization
@@ -241,5 +242,17 @@ contract RainbowDotLeague is Secondary {
         _targetFrame = forecast.targetFrame;
         _hashedTargetPrice = forecast.hashedTargetPrice;
         _targetPrice = forecast.targetPrice;
+    }
+
+    function getHashedPrice(string _season, bytes32 _forecastId) public view returns (
+        bytes32 _hashedTargetPrice
+    ) {
+        Season.Object storage season = seasons[_season];
+        require(abi.encodePacked(season.name).length != 0);
+
+        Forecast.Object memory forecast = season.forecasts[_forecastId];
+        require(abi.encodePacked(forecast.user).length != 0);
+
+        _hashedTargetPrice = forecast.hashedTargetPrice;
     }
 }
