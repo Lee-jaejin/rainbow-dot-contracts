@@ -10,18 +10,17 @@ library Forecast {
         uint256 rDots;
         uint256 startFrame;
         uint256 targetFrame;
-        bytes32 hashedTargetPrice;
+        string hashedTargetPrice;
         uint256 targetPrice;
-        // When user sell the item, must input the targetPrice. Then tempSealed variable will remove.
-        bool tempSealed;        // TODO: should remove
     }
 
     function isInitialized(Object memory _object) internal pure returns (bool) {
-        return (_object.hashedTargetPrice.length != 0);
+        return (abi.encodePacked(_object.hashedTargetPrice).length != 0);
     }
 
     function revealValue(Object storage _object, uint256 _value, uint256 _nonce) internal {
-        require(keccak256(abi.encodePacked(_value, _nonce)) == _object.hashedTargetPrice);
+//        require(keccak256(abi.encodePacked(_value, _nonce)) == _object.hashedTargetPrice);
+        // TODO: more securely
         _object.targetPrice = _value;
     }
 }
@@ -76,13 +75,12 @@ library Season {
                 _forecast.rDots,
                 _forecast.startFrame,
                 _forecast.targetFrame,
-                _forecast.hashedTargetPrice,
-                _forecast.tempSealed
+                _forecast.hashedTargetPrice
             )
         );
 
         // Unique forecast id
-        require(_object.forecasts[forecastId].isInitialized());
+        require(!_object.forecasts[forecastId].isInitialized());
 
         // add forecast data
         _object.forecastList.push(forecastId);

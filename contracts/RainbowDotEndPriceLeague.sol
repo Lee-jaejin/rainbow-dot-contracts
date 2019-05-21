@@ -15,10 +15,10 @@ contract RainbowDotEndPriceLeague is DateTime, RainbowDotLeague {
 
     function openedForecast(string _season, uint256 _rDots, uint256 _days, uint256 _targetPrice) external returns (bytes32 forecastId) {
         //TODO grade limit
-        return _forecastEndPrice(msg.sender, _season, _rDots, _days, keccak256(abi.encodePacked(_targetPrice, uint256(0))), _targetPrice);
+        return _forecastEndPrice(msg.sender, _season, _rDots, _days, "", _targetPrice);
     }
 
-    function sealedForecast(string _season, uint256 _rDots, uint256 _days, bytes32 _targetPrice) external returns (bytes32 forecastId){
+    function sealedForecast(string _season, uint256 _rDots, uint256 _days, string _targetPrice) external returns (bytes32 forecastId){
         // TODO grade limit
         return _forecastEndPrice(msg.sender, _season, _rDots, _days, _targetPrice, 0);
     }
@@ -31,7 +31,7 @@ contract RainbowDotEndPriceLeague is DateTime, RainbowDotLeague {
         string _season,
         uint256 _rDots,
         uint256 _days,
-        bytes32 _hashedTargetPrice,
+        string _hashedTargetPrice,
         uint256 _targetPrice
     ) internal returns (bytes32 forecastId) {
         Season.Object storage season = seasons[_season];

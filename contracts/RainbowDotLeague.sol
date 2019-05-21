@@ -102,12 +102,12 @@ contract RainbowDotLeague is Secondary {
 
     function openedForecast(string _season, uint256 _rDots, uint256 _periods, uint256 _targetPrice) external returns (bytes32 forecastId) {
         //TODO grade limit
-        return _forecast(msg.sender, _season, _rDots, _periods, keccak256(abi.encodePacked(_targetPrice, uint256(0))), _targetPrice, false);
+        return _forecast(msg.sender, _season, _rDots, _periods, "", _targetPrice);
     }
 
-    function sealedForecast(string _season, uint256 _rDots, uint256 _periods, bytes32 _targetPrice) external returns (bytes32 forecastId) {
+    function sealedForecast(string _season, uint256 _rDots, uint256 _periods, string _targetPrice) external returns (bytes32 forecastId) {
         // TODO grade limit
-        bytes32 _forecastId = _forecast(msg.sender, _season, _rDots, _periods, _targetPrice, 0, true);
+        bytes32 _forecastId = _forecast(msg.sender, _season, _rDots, _periods, _targetPrice, 0);
         emit EventForecastId(_forecastId);
         forecastId = _forecastId;
     }
@@ -117,9 +117,8 @@ contract RainbowDotLeague is Secondary {
         string _season,
         uint256 _rDots,
         uint256 _periods,
-        bytes32 _hashedTargetPrice,
-        uint256 _targetPrice,
-        bool _tempSealed
+        string _hashedTargetPrice,
+        uint256 _targetPrice
     ) internal returns (bytes32 forecastId) {
         Season.Object storage season = seasons[_season];
         // Season should be initialized
@@ -145,7 +144,6 @@ contract RainbowDotLeague is Secondary {
         forecast.targetFrame = targetFrame;
         forecast.hashedTargetPrice = _hashedTargetPrice;
         forecast.targetPrice = _targetPrice;
-        forecast.tempSealed = _tempSealed;
         forecastId = season.addForecast(forecast);
     }
 
@@ -200,33 +198,7 @@ contract RainbowDotLeague is Secondary {
         uint256 _rDots,
         uint256 _startFrame,
         uint256 _targetFrame,
-        bytes32 _hashedTargetPrice,
-        uint256 _targetPrice,
-        bool _tempSealed
-    ) {
-        Season.Object storage season = seasons[_season];
-        require(abi.encodePacked(season.name).length != 0);
-
-        Forecast.Object memory forecast = season.forecasts[_forecastId];
-        require(abi.encodePacked(forecast.user).length != 0);
-
-        _user = forecast.user;
-        _code = forecast.code;
-        _rDots = forecast.rDots;
-        _startFrame = forecast.startFrame;
-        _targetFrame = forecast.targetFrame;
-        _hashedTargetPrice = forecast.hashedTargetPrice;
-        _targetPrice = forecast.targetPrice;
-        _tempSealed = forecast.tempSealed;
-    }
-
-    function getForecastByMarket(string _season, bytes32 _forecastId) public view returns (
-        address _user,
-        uint256 _code,
-        uint256 _rDots,
-        uint256 _startFrame,
-        uint256 _targetFrame,
-        bytes32 _hashedTargetPrice,
+        string _hashedTargetPrice,
         uint256 _targetPrice
     ) {
         Season.Object storage season = seasons[_season];
@@ -242,17 +214,5 @@ contract RainbowDotLeague is Secondary {
         _targetFrame = forecast.targetFrame;
         _hashedTargetPrice = forecast.hashedTargetPrice;
         _targetPrice = forecast.targetPrice;
-    }
-
-    function getHashedPrice(string _season, bytes32 _forecastId) public view returns (
-        bytes32 _hashedTargetPrice
-    ) {
-        Season.Object storage season = seasons[_season];
-        require(abi.encodePacked(season.name).length != 0);
-
-        Forecast.Object memory forecast = season.forecasts[_forecastId];
-        require(abi.encodePacked(forecast.user).length != 0);
-
-        _hashedTargetPrice = forecast.hashedTargetPrice;
     }
 }

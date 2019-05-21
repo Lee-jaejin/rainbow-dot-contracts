@@ -22,15 +22,15 @@ contract RainbowDotMarket {
     struct Item {
         bytes32 forecastId;
         address seller;
-        uint256 sellCount;
-        uint256 soldOut;
+        uint256 amount;
         mapping (address => bool) cancelled;
         mapping (address => uint256) payment;
         mapping (address => bool) reader;
-        mapping (address => bytes32) encryptedValue;
+        mapping (address => string) encryptedValue;
+        mapping (address => bytes) publicKey;
     }
 
-    event Sold(address indexed seller, address indexed buyer, uint256 payment, bytes32 forecastId, uint256 sellCount, uint256 soldOut);
+    event Sold(address indexed seller, address indexed buyer, uint256 payment, bytes32 forecastId, uint256 amount);
 
     constructor (address _interpines) {
         interpines = IERC20(_interpines);
@@ -45,60 +45,16 @@ contract RainbowDotMarket {
         registered[_leagueName] = true;
     }
 
-    function getForecastsFromLeague(string _leagueName, string _seasonName) public view returns (bytes32[] memory) {
-        return leagues[_leagueName].getForecasts(_seasonName);
-    }
-
-    // before calling function sell()
-    function getForecastFromLeague(string _leagueName, string _seasonName, bytes32 _forecastId) public view returns (
-        address _user,
-        uint256 _code,
-        uint256 _rDots,
-        uint256 _startFrame,
-        uint256 _targetFrame,
-        bytes32 _hashedTargetPrice,
-        uint256 _targetPrice
-    ) {
-        Item storage item = items[_forecastId];
-
-        if (msg.sender == item.seller) {
-            (
-                _user,
-                _code,
-                _rDots,
-                _startFrame,
-                _targetFrame,
-                _hashedTargetPrice,
-                _targetPrice
-            ) = leagues[_leagueName].getForecastByMarket(_seasonName, _forecastId);
-        } else {
-            (
-                _user,
-                _code,
-                _rDots,
-                _startFrame,
-                _targetFrame,
-                _hashedTargetPrice,
-                _targetPrice
-            ) = leagues[_leagueName].getForecastByMarket(_seasonName, _forecastId);
-
-            require(item.encryptedValue[msg.sender] != bytes32(0));
-
-            _hashedTargetPrice = item.encryptedValue[msg.sender];
-        }
-    }
-
-    function stake(uint256 _amount, bytes32 _forecastId, uint256 _sellCount) public {
+    function setItem(uint256 _guarantee, bytes32 _forecastId, uint256 _amount) public {
         uint256 staking = interpines.allowance(msg.sender, address(this));
-        require(staking >= _amount);
+        require(staking >= _guarantee);
 
-        interpines.transferFrom(msg.sender, address(this), _amount);
-        guarantee[msg.sender][_forecastId] = _amount;
+        interpines.transferFrom(msg.sender, address(this), _guarantee);
+        guarantee[msg.sender][_forecastId] = _guarantee;
 
         Item storage item = items[_forecastId];
         item.seller = msg.sender;
-        item.sellCount = _sellCount;
-        item.soldOut = 0;
+        item.amount = _amount;
         item.forecastId = _forecastId;
         item.reader[msg.sender] = true;
         itemList.push(_forecastId);
@@ -110,34 +66,38 @@ contract RainbowDotMarket {
 
     function getItem(bytes32 _forecastId, address _buyer) public view returns (
         address _seller,
-        uint256 _sellCount,
-        uint256 _soldOut,
+        uint256 _amount,
         bool _cancelled,
         uint256 _payment,
-        bool _reader
+        bool _reader,
+        bytes _publicKey,
+        string _encryptedValue
     ) {
         Item storage item = items[_forecastId];
 
         _seller = item.seller;
-        _sellCount = item.sellCount;
-        _soldOut = item.soldOut;
+        _amount = item.amount;
         _cancelled = item.cancelled[_buyer];
         _payment = item.payment[_buyer];
         _reader = item.reader[_buyer];
+        _publicKey = item.publicKey[_buyer];
+        _encryptedValue = item.encryptedValue[_buyer];
     }
 
-    function getStake(address _user, bytes32 _forecastId) public view returns (uint256) {
+    function getGuarantee(address _user, bytes32 _forecastId) public view returns (uint256) {
         return guarantee[_user][_forecastId];
     }
 
-    function order(uint256 _payment, bytes32 _forecastId) public {
+    function order(uint256 _payment, bytes32 _forecastId, bytes _publicKey) public {
         uint256 staking = interpines.allowance(msg.sender, address(this));
         require(staking >= _payment);
         require(_payment > 0);
+        require((uint(keccak256(_publicKey)) & 0x00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF) == uint(msg.sender));
 
         interpines.transferFrom(msg.sender, address(this), _payment);
         Item storage item = items[_forecastId];
         item.payment[msg.sender] = _payment;
+        item.publicKey[msg.sender] = _publicKey;
     }
 
     function cancel(bytes32 _forecastId) public {
@@ -150,36 +110,29 @@ contract RainbowDotMarket {
     }
 
     function sell(
-        string _leagueName,
-        string _seasonName,
         bytes32 _forecastId,
         address _buyer,
-        bytes32 _encryptedValue,
-        bytes32 _reHashedValue
+        string _encryptedValue
     ) public {
         Item storage item = items[_forecastId];
 
         require(item.seller == msg.sender);
         require(!item.cancelled[_buyer]);
-        require(item.soldOut < item.sellCount);
-
-        bytes32 _hashedTargetPrice = leagues[_leagueName].getHashedPrice(_seasonName, _forecastId);
-
-        require(_hashedTargetPrice == _reHashedValue, "invalid hashedTargetPrice!");
+        require(item.amount != 0, "cannot sell anymore");
 
         item.encryptedValue[_buyer] = _encryptedValue;
         interpines.transfer(item.seller, item.payment[_buyer]);
         item.reader[_buyer] = true;
-        item.soldOut = item.soldOut.add(1);
+        item.amount = item.amount.sub(1);
 
-        emit Sold(item.seller, _buyer, item.payment[_buyer], _forecastId, item.sellCount, item.soldOut);
+        emit Sold(item.seller, _buyer, item.payment[_buyer], _forecastId, item.amount);
     }
 
     function payBack(bytes32 _forecastId) public {
         Item storage item = items[_forecastId];
 
         require(item.seller == msg.sender, "you are not permitted");
-        require(item.soldOut == item.sellCount, "items have not been sold yet");
+        require(item.amount == 0, "items have not been sold yet");
 
         interpines.transfer(item.seller, guarantee[item.seller][_forecastId]);
     }
